@@ -4,15 +4,15 @@
 [![rank](https://make.fun/badge/tiny-chess-01/iqbalmaulana25/tiny-chess/rank.svg)](https://make.fun/bounty/tiny-chess-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=tiny-chess-01)
 [![reward](https://make.fun/badge/tiny-chess-01/iqbalmaulana25/tiny-chess/reward.svg)](https://make.fun/bounty/tiny-chess-01?utm_source=github&utm_medium=readme&utm_campaign=tiny-chess-01)
 
-A chess engine in 4,027 bytes of Python: an lzma-packed alpha-beta engine with iterative deepening under a fixed 40,000-node budget (no clock, replay-deterministic), late-move reductions, check extensions, quiescence over captures, promotions and check evasions with delta pruning, a transposition table, killer moves, MVV-LVA ordering and incremental piece-square evaluation with a tempo bonus. Movegen perft-verified on the standard test positions; on the kit's practice gauntlet it scores around the house baseline's strength, well above the floor for the final.
+A chess engine in 4,091 bytes of Python: an lzma-packed negamax alpha-beta engine with iterative deepening under a fixed 40,000-node budget (no clock, replay-deterministic). Evaluation is a PeSTO-style tapered score — published piece-square tables with game-phase interpolation (middlegame tables for every piece, endgame tables for pawns and kings), maintained incrementally alongside the Zobrist key — and the search adds a transposition table, MVV-LVA + killer move ordering, null-move pruning, late-move reductions with a null-window probe and re-search, check extensions, futility pruning, and quiescence over captures. Mate-distance scoring prefers the fastest mate. Movegen is perft-verified on the standard test positions; incremental eval/Zobrist state is fuzz-checked against fresh parses.
 
 ## Development notes
 
-The engine was strengthened in three revision rounds after the first working version:
+The first working version (single-phase piece-square tables, ~1,364 practice Elo on the kit gauntlet) was rebuilt in three rounds:
 
-1. **Evaluation** — added a tempo bonus for the side to move and factored the incremental piece-square updates through a single sign-aware helper.
-2. **Search** — added late-move reductions (null-window probe with re-search on fail-high), check extensions, and delta pruning in quiescence. On a fixed-depth benchmark suite this cut the node count roughly 4x versus the original search, so the fixed 40,000-node budget now reaches about a ply deeper; in self-play the revised engine beat the previous version 5.5–2.5. To fund the extra code under the 4,096-byte cap, the piece-square tables are now stored as left halves and mirrored at startup (the tables are file-symmetric apart from three queen squares that shift by 5 cp).
-3. **Verification** — perft re-run on the standard positions, incremental-eval/Zobrist consistency fuzzing, and a final practice gauntlet with the shipped `main.py`.
+1. **Evaluation** — swapped the eval for full PeSTO tapered tables (all twelve middlegame/endgame tables, stored as mirrored file-halves in one base64 blob, decoded at startup). Depth-4 benchmark nodes fell from ~81k to ~66k and self-play against the previous engine scored 6.0/8 at 8,000 nodes per move. The packed file was 4,377 bytes at this point — over the 4,096 cap.
+2. **Size diet** — to fit the cap without giving up the search, the endgame tables for knight/bishop/rook/queen were folded onto their middlegame counterparts (pawns and kings keep dedicated endgame tables), the hand-written attack detector was replaced by capture-generation check tests (perft-verified), quiescence delta pruning was dropped, move generation and the driver were golfed, and the payload was re-tuned (custom lzma filter chain). Final size 4,091 bytes.
+3. **Verification** — perft re-run on the standard positions with the shipped `main.py` payload (byte-identical decompression), incremental-eval/Zobrist consistency fuzzing, and head-to-head self-play of the rebuild candidates (16-game matches at 8,000 nodes per move, plus 8 games at the full 40,000-node budget) before choosing the final one.
 
 ## Run it
 
